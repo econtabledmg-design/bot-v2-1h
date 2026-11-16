@@ -170,6 +170,10 @@ def main():
         S['btcN'] = px['BTC']
     N = S.setdefault('news', {'lvl': 0, 't': 0, 'hold': 0, 'motivo': 'Sin lectura todavia', 'modo': 'apagado', 'heads': [], 'n': 0})
     if now - N['t'] > 20 * 60000: update_news(N, now)
+    # El radar siempre lee y muestra noticias. Solo frena al bot si NEWS_BLOCK=on en bot.yml (por defecto apagado, para comparar reglas sin interferencias).
+    NB = os.environ.get('NEWS_BLOCK', 'off').lower() == 'on'
+    N['bloquea'] = NB
+    LV = N['lvl'] if NB else 0; DR = N.get('dir', 0) if NB else 0
     cache = {}
     def candles(s, t0):
         if (s, int(t0)) not in cache: cache[(s, int(t0))] = get1m(s, t0)
@@ -182,7 +186,7 @@ def main():
             B['tr'].append({'s': q['s'], 'side': q['side'], 't0': q['t'], 't1': now, 'pnl': pnl, 'why': why})
             B['cool'][q['s']] = now; B['pos'].remove(q)
         def unreal(B=B): return sum(q['side'] * (px.get(q['s'], q.get('last', q['e'])) - q['e']) * q['q'] for q in B['pos'])
-        if N['lvl'] >= 2:
+        if LV >= 2:
             for q in list(B['pos']): shut(q, px.get(q['s'], q.get('last', q['e'])), 'freno noticias')
         for q in list(B['pos']):
             p = px.get(q['s']); res = None
@@ -204,9 +208,9 @@ def main():
             if x[0] < t: e0 = x[1]
             else: break
         B['block'] = eq - e0 < -.03 * e0
-        if not B['block'] and N['lvl'] == 0:
+        if not B['block'] and LV == 0:
             for r in sorted([x for x in rows if x['dec']], key=lambda x: -abs(x['sc'])):
-                if len(B['pos']) >= 3 or any(q['s'] == r['s'] for q in B['pos']) or now - B['cool'].get(r['s'], 0) < COOL or N.get('dir', 0) * r['dec'] < 0: continue
+                if len(B['pos']) >= 3 or any(q['s'] == r['s'] for q in B['pos']) or now - B['cool'].get(r['s'], 0) < COOL or DR * r['dec'] < 0: continue
                 e = r['p'] * (1 + r['dec'] * SLIP); a = r['a']; sd = bk['stop'] * a; q = eq * .01 / sd
                 if q * e > eq * .25: q = eq * .25 / e
                 ps = {'s': r['s'], 'side': r['dec'], 'e': e, 'q': q, 'stop': e - r['dec'] * sd, 'tp': e + r['dec'] * bk['tp'] * a, 't': now, 'chk': now, 'last': r['p'], 'a': a}
